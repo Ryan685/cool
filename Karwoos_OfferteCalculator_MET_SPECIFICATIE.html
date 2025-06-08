@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Karwoos Offertecalculator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial; background: #f9f9f9; color: #333; margin: 20px; }
+    h1 { color: #e67300; }
+    input, button { margin: 6px 0; padding: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background-color: #eee; }
+    .section { margin-top: 20px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
+    .btn { background-color: #e67300; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Karwoos Electroos – Offertecalculator ⚡</h1>
+
+  <div class="section">
+    <h3>Klantgegevens</h3>
+    <input type="text" id="klant" placeholder="Naam klant">
+    <input type="text" id="project" placeholder="Projectomschrijving">
+    <input type="number" id="korting" placeholder="Korting (%)" value="0">
+    <input type="number" id="btw" placeholder="BTW (%)" value="10">
+    <input type="number" id="koers" placeholder="USD → SRD koers" value="38.5">
+  </div>
+
+  <div class="section">
+    <h3>Arbeid</h3>
+    <table id="arbeid">
+      <thead><tr><th>Omschrijving</th><th>Uren</th><th>Tarief USD</th><th>USD</th><th>SRD</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" onclick="voegRijToe('arbeid')">➕ Voeg arbeid toe</button>
+  </div>
+
+  <div class="section">
+    <h3>Materiaal</h3>
+    <table id="materiaal">
+      <thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs USD</th><th>USD</th><th>SRD</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn" onclick="voegRijToe('materiaal')">➕ Voeg materiaal toe</button>
+  </div>
+
+  <div class="section">
+    <h3>Samenvatting</h3>
+    <p><strong>Subtotaal Arbeid SRD:</strong> <span id="subArbeid">0</span></p>
+    <p><strong>Subtotaal Materiaal SRD:</strong> <span id="subMateriaal">0</span></p>
+    <p><strong>Totaal SRD:</strong> <span id="srdTotaal">0</span></p>
+    <p><strong>Totaal USD:</strong> <span id="usdTotaal">0</span></p>
+    <button class="btn" onclick="genereerPDF()">📄 Genereer PDF Offerte</button>
+  </div>
+
+  <script>
+    function voegRijToe(type) {
+      const tbody = document.querySelector(`#${type} tbody`);
+      const rij = document.createElement('tr');
+      rij.innerHTML = `
+        <td><input type="text"></td>
+        <td><input type="number" value="1"></td>
+        <td><input type="number" value="0"></td>
+        <td class="usd">0</td>
+        <td class="srd">0</td>`;
+      tbody.appendChild(rij);
+
+      rij.querySelectorAll('input').forEach(input => input.addEventListener('input', updateTotalen));
+      updateTotalen();
+    }
+
+    function updateTotalen() {
+      const koers = parseFloat(document.getElementById('koers').value);
+      let subA = 0, subM = 0;
+
+      document.querySelectorAll('#arbeid tbody tr').forEach(rij => {
+        const u = parseFloat(rij.children[1].children[0].value);
+        const tarief = parseFloat(rij.children[2].children[0].value);
+        const usd = u * tarief;
+        const srd = usd * koers;
+        rij.children[3].textContent = usd.toFixed(2);
+        rij.children[4].textContent = srd.toFixed(2);
+        subA += srd;
+      });
+
+      document.querySelectorAll('#materiaal tbody tr').forEach(rij => {
+        const a = parseFloat(rij.children[1].children[0].value);
+        const prijs = parseFloat(rij.children[2].children[0].value);
+        const usd = a * prijs;
+        const srd = usd * koers;
+        rij.children[3].textContent = usd.toFixed(2);
+        rij.children[4].textContent = srd.toFixed(2);
+        subM += srd;
+      });
+
+      const korting = parseFloat(document.getElementById('korting').value) / 100;
+      const btw = parseFloat(document.getElementById('btw').value) / 100;
+
+      document.getElementById('subArbeid').textContent = subA.toFixed(2);
+      document.getElementById('subMateriaal').textContent = subM.toFixed(2);
+
+      let totaalSRD = (subA + subM) * (1 - korting) * (1 + btw);
+      document.getElementById('srdTotaal').textContent = totaalSRD.toFixed(2);
+      document.getElementById('usdTotaal').textContent = (totaalSRD / koers).toFixed(2);
+    }
+
+    async function genereerPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const klant = document.getElementById('klant').value;
+      const project = document.getElementById('project').value;
+      const subA = document.getElementById('subArbeid').textContent;
+      const subM = document.getElementById('subMateriaal').textContent;
+      const srd = document.getElementById('srdTotaal').textContent;
+      const usd = document.getElementById('usdTotaal').textContent;
+
+      doc.setFontSize(16);
+      doc.setTextColor(230, 115, 0);
+      doc.text("Karwoos Electroos", 10, 15);
+      doc.setFontSize(11);
+      doc.setTextColor(0);
+      doc.text("Spanning in vakmanschap ⚡", 10, 22);
+
+      doc.setFontSize(11);
+      doc.text(`Klant: ${klant}`, 10, 35);
+      doc.text(`Project: ${project}`, 10, 42);
+      doc.text(`Subtotaal arbeid: SRD ${subA}`, 10, 55);
+      doc.text(`Subtotaal materiaal: SRD ${subM}`, 10, 62);
+      doc.text(`Totaalbedrag (incl. korting en btw): SRD ${srd} / USD ${usd}`, 10, 72);
+
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text("Deze offerte is onder voorbehoud van typefouten. Prijzen zijn inclusief wettelijke belastingen tenzij anders vermeld.", 10, 280);
+      doc.text("Contact: karwoos@electroos.com | +597 123456 | www.karwoos.com", 10, 287);
+
+      doc.save("offerte-karwoos.pdf");
+    }
+
+    document.querySelectorAll('input').forEach(i => i.addEventListener('input', updateTotalen));
+  </script>
+</body>
+</html>
